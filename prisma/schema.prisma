@@ -1,0 +1,478 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String         @id @default(auto()) @map("_id") @db.ObjectId
+  firstname             String?
+  lastname              String?
+  email                 String         @unique
+  current_password      String?
+  birthdate             String?        @default("01/01/1999")
+  phone_number          String?
+  role                  Role           @default(USER)
+  state                 Status         @default(ACTIVE)
+  photo                 String?
+  ownedBreweries        Brewery[]      @relation("BreweryOwner")
+  managedBreweries      Brewery[]      @relation("BreweryManager")
+  city                  City           @relation(fields: [cityId], references: [id])
+  cityId                String         @db.ObjectId
+  sentNotifications     Notification[] @relation("SentNotifications")
+  receivedNotifications Recipient[]    @relation("ReceivedNotifications")
+  created_at            DateTime       @default(now())
+  Tour                  Tour[]
+  Ad                    Ad[]
+  Media                 Media[]
+}
+
+enum Role {
+  USER
+  ADMIN
+  BREWERY_MANAGER
+  BREWERY_OWNER
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+model State {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  state_id  String     @unique // Código FIPS del estado
+  counties  County[] // Relación con los condados
+  cities    City[] // Relación con las ciudades
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  Location  Location[]
+  AdRates   AdRates[]
+  Ad        Ad[]
+}
+
+model County {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  county_fips String     @unique
+  state       State      @relation(fields: [stateId], references: [id]) // Relación con el estado
+  stateId     String     @db.ObjectId
+  cities      City[] // Relación con las ciudades
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  Location    Location[]
+}
+
+model City {
+  id                   String     @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  city_ascii           String?
+  state                State      @relation(fields: [stateId], references: [id]) // Relación con el estado
+  stateId              String     @db.ObjectId
+  county               County     @relation(fields: [countyId], references: [id]) // Relación con el condado
+  countyId             String     @db.ObjectId
+  lat                  Float?
+  lng                  Float?
+  population           Int?
+  timezone             String?
+  ranking              Int?
+  zip                  String?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  User                 User[]
+  uniqueCityIdentifier String     @unique
+  Location             Location[]
+  Tour                 Tour[]
+  AdRates              AdRates[]
+  Ad                   Ad[]
+}
+
+model Location {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  address   String
+  city      City      @relation(fields: [cityId], references: [id]) // Relación con la ciudad
+  cityId    String    @db.ObjectId
+  latitude  Float?
+  longitude Float?
+  zip       String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Brewery   Brewery[]
+  State     State?    @relation(fields: [stateId], references: [id])
+  stateId   String?   @db.ObjectId
+  County    County?   @relation(fields: [countyId], references: [id])
+  countyId  String?   @db.ObjectId
+}
+
+model Brewery {
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  location       Location         @relation(fields: [locationId], references: [id])
+  type           String?
+  website        String?
+  owner          User?            @relation("BreweryOwner", fields: [ownerId], references: [id]) // Relación opcional
+  ownerId        String?          @db.ObjectId // Este campo puede ser nulo
+  manager        User?            @relation("BreweryManager", fields: [managerId], references: [id]) // Relación opcional
+  managerId      String?          @db.ObjectId // Este campo puede ser nulo
+  features       BreweryFeature[] // Relación con BreweryFeature
+  comments       String?
+  merchandise    Boolean?
+  social_media   Boolean?
+  status         Status           @default(ACTIVE)
+  beers          BreweryBeer[]
+  foods          BreweryFood[]
+  services       BreweryService[]
+  music          BreweryMusic[]
+  locationId     String           @db.ObjectId
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  OperatingHours OperatingHours[]
+  BreweryEvent   BreweryEvent[]
+  tours          TourBrewery[]
+  media          Media[]
+}
+
+model Beer {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  type      String?
+  brand     String?
+  name      String?
+  image     String?
+  breweries BreweryBeer[] // Relación muchos a muchos a través del modelo BreweryBeer
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+}
+
+model BreweryBeer {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  brewery   Brewery? @relation(fields: [breweryId], references: [id]) // Permitir null con `?`
+  breweryId String?  @db.ObjectId // Permitir breweryId opcional
+  beer      Beer     @relation(fields: [beerId], references: [id])
+  beerId    String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model Food {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  name      String        @unique
+  type      String?
+  image     String?
+  breweries BreweryFood[] // Relación muchos a muchos a través del modelo BreweryFood
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+}
+
+model BreweryFood {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  brewery   Brewery  @relation(fields: [breweryId], references: [id])
+  breweryId String   @db.ObjectId
+  food      Food     @relation(fields: [foodId], references: [id])
+  foodId    String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model Service {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  name        String           @unique
+  description String?
+  image       String?
+  breweries   BreweryService[] // Relación muchos a muchos a través del modelo BreweryService
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+}
+
+model BreweryService {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  brewery   Brewery  @relation(fields: [breweryId], references: [id])
+  breweryId String   @db.ObjectId
+  service   Service  @relation(fields: [serviceId], references: [id])
+  serviceId String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model Music {
+  id        String         @id @default(auto()) @map("_id") @db.ObjectId
+  genre     String         @unique
+  image     String?
+  breweries BreweryMusic[] // Relación muchos a muchos a través del modelo BreweryMusic
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt @map("updated_at")
+}
+
+model BreweryMusic {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  brewery   Brewery  @relation(fields: [breweryId], references: [id])
+  breweryId String   @db.ObjectId
+  music     Music    @relation(fields: [musicId], references: [id])
+  musicId   String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model Event {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  name        String         @unique
+  description String?
+  date        DateTime
+  image       String?
+  breweries   BreweryEvent[] // Relación muchos a muchos a través del modelo BreweryEvent
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+}
+
+model BreweryEvent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  brewery   Brewery  @relation(fields: [breweryId], references: [id])
+  breweryId String   @db.ObjectId
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model BreweryFeature {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  logo        String?  @db.String
+  image       String?  @db.String
+  description String?
+  phone       String?
+  facebook    String?
+  x           String?
+  instagram   String?
+  highlighted Boolean? @default(false)
+  capacity    String?
+  booklink    String?
+  pricerank   String?
+  state       Int?
+  brewery     Brewery  @relation(fields: [breweryId], references: [id])
+  breweryId   String   @db.ObjectId
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+}
+
+model OperatingHours {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  mondayOpen     String?
+  mondayClose    String?
+  tuesdayOpen    String?
+  tuesdayClose   String?
+  wednesdayOpen  String?
+  wednesdayClose String?
+  thursdayOpen   String?
+  thursdayClose  String?
+  fridayOpen     String?
+  fridayClose    String?
+  saturdayOpen   String?
+  saturdayClose  String?
+  sundayOpen     String?
+  sundayClose    String?
+  brewery        Brewery  @relation(fields: [breweryId], references: [id])
+  breweryId      String   @db.ObjectId
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt @map("updated_at")
+}
+
+model TutorialStepsApp {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  title        String   @unique
+  description  String
+  web_image    String
+  mobile_image String
+  orden        Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt @map("updated_at")
+}
+
+model Tags {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model Tour {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  description  String?
+  image        String?
+  user         User          @relation(fields: [userId], references: [id])
+  userId       String        @db.ObjectId
+  breweries    TourBrewery[]
+  city         City          @relation(fields: [cityId], references: [id])
+  cityId       String        @db.ObjectId
+  radius       Float
+  startDate    DateTime
+  breweryCount Int
+  days         Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model TourBrewery {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  tour      Tour     @relation(fields: [tourId], references: [id])
+  tourId    String   @db.ObjectId
+  brewery   Brewery? @relation(fields: [breweryId], references: [id])
+  breweryId String?  @db.ObjectId
+  distance  Float // Distancia entre la ubicación del tour y la cervecería
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  title      String // Título del mensaje de notificación
+  message    String // Contenido del mensaje de notificación
+  sender     User        @relation("SentNotifications", fields: [senderId], references: [id]) // Relación con el usuario que envía la notificación
+  senderId   String      @db.ObjectId
+  recipients Recipient[] @relation("NotificationRecipients") // Relación con los destinatarios de la notificación
+  createdAt  DateTime    @default(now()) // Fecha de creación de la notificación
+  updatedAt  DateTime    @updatedAt // Fecha de última actualización
+}
+
+model Recipient {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  notification   Notification @relation("NotificationRecipients", fields: [notificationId], references: [id]) // Relación con la notificación
+  notificationId String       @db.ObjectId
+  recipient      User         @relation("ReceivedNotifications", fields: [userId], references: [id]) // Relación con el usuario destinatario
+  userId         String       @db.ObjectId
+  read           Boolean      @default(false) // Indica si la notificación ha sido leída
+  createdAt      DateTime     @default(now()) // Fecha en que se envió la notificación
+  updatedAt      DateTime     @updatedAt // Fecha de última actualización
+}
+
+model AdType {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  name              String    @unique
+  description       String?
+  image             String?
+  limit             Int
+  desktop_width     Int
+  desktop_height    Int
+  mobile_width      Int
+  mobile_height     Int
+  desktop_file_size Int
+  mobile_file_size  Int
+  status            Status    @default(ACTIVE)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  AdRates           AdRates[]
+  Ad                Ad[]
+}
+
+model AdRates {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  state     State    @relation(fields: [stateId], references: [id]) // Relación con el estado
+  stateId   String   @db.ObjectId
+  city      City     @relation(fields: [cityId], references: [id]) // Relación con la ciudad
+  cityId    String   @db.ObjectId
+  adType    AdType   @relation(fields: [adTypeId], references: [id]) // Relación con el tipo de anuncio
+  adTypeId  String   @db.ObjectId
+  rate      Float // Tarifa del anuncio
+  status    Status   @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model Category {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique // Nombre de la categoría (comida, servicios, música, eventos, etc.)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Ad        Ad[]
+}
+
+model Ad {
+  id                  String     @id @default(auto()) @map("_id") @db.ObjectId
+  name                String // Nombre del anuncio (requerido)
+  adTypesId           String     @db.ObjectId // Foreign key para tipos de anuncios (requerido)
+  adType              AdType     @relation(fields: [adTypesId], references: [id])
+  linkUrl             String? // URL del enlace (opcional)
+  buttonName          String? // Nombre del botón (opcional)
+  desktopFile         String? // Archivo de escritorio (opcional)
+  mobileFile          String? // Archivo móvil (opcional)
+  font                String? // Fuente (opcional)
+  text1               String? // Texto 1 (opcional)
+  text1Color          String? // Color del texto 1 (opcional)
+  text2               String? // Texto 2 (opcional)
+  text2Color          String? // Color del texto 2 (opcional)
+  bgImage             String? // Imagen de fondo (opcional)
+  payStatus           String? // Estado del pago (opcional)
+  status              Status     @default(ACTIVE) // Estado del anuncio (con valor predeterminado)
+  totalCost           Float? // Costo total (opcional)
+  userId              String?    @db.ObjectId // Foreign key para Usuarios
+  user                User?      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction) // Evitar ciclo referencial
+  categoryId          String     @db.ObjectId // Foreign key para Categorías
+  category            Category   @relation(fields: [categoryId], references: [id])
+  urlVideo            String // URL del video (requerido)
+  desktopVideoFile    String // Archivo de video para escritorio (requerido)
+  desktopVideoPreview String // Vista previa del video para escritorio (requerido)
+  mobileVideoFile     String // Archivo de video para móvil (requerido)
+  mobileVideoPreview  String
+  state               State?     @relation(fields: [stateId], references: [id]) // Relación con el estado
+  stateId             String?    @db.ObjectId
+  city                City?      @relation(fields: [cityId], references: [id]) // Relación con la ciudad
+  cityId              String?    @db.ObjectId
+  selectedDays        Int[] // Días seleccionados (ej. [1,2,3] para Lunes, Martes, Miércoles)
+  selectedDates       DateTime[] // Fechas específicas no contiguas (lista obligatoria, aunque puede estar vacía)
+  startDate           DateTime // Fecha de inicio del anuncio
+  endDate             DateTime // Fecha de finalización del anuncio
+  clicks              Int        @default(0) // Número de clics en el anuncio (con valor predeterminado 0)
+  views               Int        @default(0) // Número de vistas del anuncio (con valor predeterminado 0)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+}
+
+model Terms {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String   @unique
+  content   String
+  type      TypeText @default(TERMS_SERVICE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum TypeText {
+  TERMS_SERVICE
+  PRIVACY_POLICY
+  ABOUT_US
+}
+
+model Feature {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model Media {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  type         MediaType // Tipo de media: IMAGE o VIDEO
+  url          String // URL del medio (imagen o video)
+  thumbnail    String? // URL de la vista previa, solo si es un video
+  status       MediaStatus @default(PENDING) // Estado de aprobación del medio
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  brewery      Brewery     @relation(fields: [breweryId], references: [id]) // Relación con Brewery
+  breweryId    String      @db.ObjectId
+  approvedBy   User?       @relation(fields: [approvedById], references: [id]) // Usuario ADMIN que aprueba o rechaza
+  approvedById String?     @db.ObjectId // Puede ser nulo hasta que se apruebe o rechace el medio
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum MediaStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
